@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>1週間スケジュールメーカー（30分刻み + THPチェック + 印刷）</title>
+<style>
+  :root{
+    --bg:#f7f7fb; --card:#ffffff; --ink:#1b1f24; --muted:#6b7280;
+    --line:#e5e7eb; --accent:#3b82f6; --danger:#ef4444; --ok:#10b981; --warn:#f59e0b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; color:var(--ink); background:var(--bg);}  
+  header{position:sticky; top:0; z-index:5; background:linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.85)); backdrop-filter: blur(6px); border-bottom:1px solid var(--line);} 
+  .wrap{max-width:1200px; margin:0 auto; padding:16px;}
+  h1{font-size:clamp(18px,3.2vw,28px); margin:4px 0 12px;}
+  .row{display:flex; gap:16px; flex-wrap:wrap;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(16,24,40,.06);} 
+  .toolbar{display:flex; gap:12px; align-items:end; flex-wrap:wrap;}
+  label{font-size:12px; color:var(--muted); display:block; margin-bottom:4px;}
+  input[type="text"], input[type="time"], select{border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:14px; background:white;}
+  input[type="color"]{border:1px solid var(--line); border-radius:8px; height:36px; width:48px;}
+  button{border:1px solid var(--line); background:white; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600;}
+  button.primary{background:var(--accent); color:white; border-color:transparent;}
+  button.ghost{background:transparent;}
+  button.danger{background:var(--danger); color:white; border-color:transparent;}
+  button:disabled{opacity:.6; cursor:not-allowed;}
+  .palette{display:flex; gap:8px; flex-wrap:wrap;}
+  .tag{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); padding:6px 10px; border-radius:999px; background:#fff; cursor:pointer;}
+  .tag.active{outline:2px solid var(--accent)}
+  .dot{width:12px; height:12px; border-radius:50%; outline:1px solid rgba(0,0,0,.06)}
+  .gridwrap{overflow:auto;}
+  table{border-collapse:separate; border-spacing:0; min-width:900px;}
+  th, td{border:1px solid var(--line);} 
+  th{position:sticky; top:0; background:#fafafa; font-weight:700;}
+  thead th.timecol{left:0; z-index:2; position:sticky; background:#fafafa;} 
+  tbody .timecol{position:sticky; left:0; background:#fcfcfc; font-weight:600; color:#334155;}
+  td, th{padding:6px 8px; font-size:12px; text-align:center;}
+  td.slot{min-width:100px; height:26px; background: white; cursor:crosshair;}
+  td.slot[data-item]{color:#fff; font-weight:700; filter: saturate(.92);} 
+  .legend{font-size:12px; color:var(--muted)}
+  .flex{display:flex; align-items:center; gap:8px;}
+  .grid{display:grid; gap:8px;}
+  .grow{flex:1}
+  .mt8{margin-top:8px} .mt12{margin-top:12px} .mt16{margin-top:16px}
+  .small{font-size:12px; color:var(--muted)}
+  .totals{display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:8px;}
+  .pill{background:#f1f5f9; border-radius:999px; padding:6px 10px; font-size:12px; display:flex; align-items:center; gap:6px;}
+  .hidden{display:none}
+  .section-title{font-weight:700; margin:12px 0 6px;}
+  /* THPカード */
+  .thp{display:grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap:10px}
+  .thp .c{border:1px solid var(--line); border-radius:12px; padding:10px; background:#fff;}
+  .thp .ok{border-color:#d1fae5; background:#f0fdf4}
+  .thp .warn{border-color:#fef3c7; background:#fffbeb}
+  .thp h4{margin:0 0 4px; font-size:13px}
+  .thp p{margin:0; font-size:12px; color:#374151}
+  @media print{
+    header{display:none}
+    .wrap{max-width:100%; padding:0}
+    body{background:#fff}
+    .card{border:none; box-shadow:none}
+    .gridwrap{overflow:visible}
+    table{min-width:100%}
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>1週間スケジュールメーカー <span class="legend">（30分刻み／ドラッグ塗り／THP自動チェック／JSON保存・CSV・印刷）</span></h1>
+      <div class="row">
+        <div class="card" style="flex:1; min-width:320px">
+          <div class="toolbar">
+            <div>
+              <label>項目名</label>
+              <input id="newName" type="text" placeholder="例：バイト、塾、家事…" />
+            </div>
+            <div>
+              <label>色</label>
+              <input id="newColor" type="color" value="#3b82f6" />
+            </div>
+            <div>
+              <label>THP属性</label>
+              <select id="newThp">
+                <option value="none">紐づけなし</option>
+                <option value="sleep">睡眠</option>
+                <option value="meal">食事</option>
+                <option value="exercise">運動</option>
+                <option value="leisure">余暇</option>
+                <option value="consult">相談・交流</option>
+                <option value="stress">ストレス発散</option>
+              </select>
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <button id="addItem" class="primary">＋ 項目追加</button>
+            </div>
+            <div class="grow"></div>
+            <div>
+              <label>選択中の項目で 一括入力</label>
+              <div class="flex">
+                <select id="bulkDay"></select>
+                <input id="bulkStart" type="time" value="22:00">〜
+                <input id="bulkEnd" type="time" value="06:00">
+                <button id="bulkFill">塗る</button>
+              </div>
+              <div class="small">※ 夜またぎOK（例：22:00→06:00）／30分刻みにスナップ</div>
+            </div>
+          </div>
+          <div class="mt12">
+            <label>項目パレット（タップで選択／もう一度で編集・削除）</label>
+            <div id="palette" class="palette"></div>
+            <div class="small mt8">プリセット：睡眠 / 仕事 / 食事 / 通学・通勤 / 余暇 / 運動</div>
+          </div>
+        </div>
+        <div class="card" style="min-width:260px">
+          <label>データ操作</label>
+          <div class="flex mt8" style="flex-wrap:wrap">
+            <button id="saveJson">JSON保存</button>
+            <label class="tag" for="loadJsonInput" style="margin:0; cursor:pointer">JSON読込<input id="loadJsonInput" type="file" accept="application/json" class="hidden"></label>
+            <button id="exportCsv">CSV出力</button>
+            <button id="printPage">印刷 / PDF</button>
+            <button id="clearAll" class="danger">全消去</button>
+          </div>
+          <div class="small mt8"><b>使い方</b>：①パレットで項目を選ぶ → ②グリッドをクリック/ドラッグで塗る → ③必要に応じて一括入力やJSON保存・CSV出力・印刷を使う。パレットをもう一度クリックで編集/削除。</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <div class="gridwrap">
+        <table id="grid"></table>
+      </div>
+      <div class="mt16">
+        <label>合計（時間）</label>
+        <div id="totals" class="totals"></div>
+      </div>
+    </div>
+
+    <div class="card mt16">
+      <div class="section-title">THPチェック（自動判定）</div>
+      <div id="thpPanel" class="thp"></div>
+      <div class="small mt8">判定基準：<br>・睡眠：各日6h以上を目標（週に5日以上達成でOK）<br>・食事：各日3回相当（30分×3枠以上）<br>・運動：週合計150分以上 または 1日30分以上が3日以上<br>・相談/交流：週に1時間以上（家族・友人・相談含む）<br>・余暇：週に3時間以上<br>・ストレス発散：週に1時間以上</div>
+    </div>
+
+    <div class="card mt16">
+      <div class="section-title">使い方メモ</div>
+      <ul class="small" style="margin:6px 0 0 16px; line-height:1.7">
+        <li>30分刻みで塗れます。まとめて入れる場合は上部の「一括入力」を利用。</li>
+        <li>独自の項目も「項目名＋色＋THP属性」を付けて追加できます（属性は判定に使用）。</li>
+        <li>保存はJSON、表計算はCSV、配布や提出は「印刷/PDF」を使うと便利です。</li>
+        <li>パレットをもう一度クリックすると名称・色・属性の編集、空入力で削除ができます。</li>
+      </ul>
+    </div>
+  </main>
+
+<script>
+(() => {
+  // ---- 基本定義 ----
+  const days = ["月","火","水","木","金","土","日"];
+  const SLOTS_PER_DAY = 48; // 30分刻み（0..47）
+  const SLOT_MINUTES = 30;
+
+  // スケジュール配列 [day][slot] = itemKey|null
+  let schedule = Array.from({length:7}, () => Array(SLOTS_PER_DAY).fill(null));
+
+  // 項目 {key, name, color, thp}
+  let items = [];
+  let selectedKey = null;
+
+  const el = (id) => document.getElementById(id);
+  const gridEl = el('grid');
+  const paletteEl = el('palette');
+  const totalsEl = el('totals');
+  const thpPanel = el('thpPanel');
+
+  // プリセット項目
+  const presets = [
+    {name:'睡眠', color:'#0ea5e9', thp:'sleep'},
+    {name:'仕事', color:'#f97316', thp:'none'},
+    {name:'食事', color:'#10b981', thp:'meal'},
+    {name:'通学・通勤', color:'#a855f7', thp:'none'},
+    {name:'余暇', color:'#eab308', thp:'leisure'},
+    {name:'運動', color:'#ef4444', thp:'exercise'},
+  ];
+
+  // ID発行
+  const uid = ()=>'i_'+Math.random().toString(36).slice(2,9);
+
+  // ---- UI 構築 ----
+  function buildGrid(){
+    const thead = document.createElement('thead');
+    const tbody = document.createElement('tbody');
+
+    // ヘッダ行
+    const trh = document.createElement('tr');
+    const th0 = document.createElement('th'); th0.className='timecol'; th0.textContent='時間'; trh.appendChild(th0);
+    days.forEach(d=>{ const th=document.createElement('th'); th.textContent=d; trh.appendChild(th); });
+    thead.appendChild(trh);
+
+    // 時間行（00,30分）
+    for(let s=0; s<SLOTS_PER_DAY; s++){
+      const tr = document.createElement('tr');
+      const hour = Math.floor(s/2); const min = s%2?30:0;
+      const th = document.createElement('th'); th.className='timecol'; th.textContent = `${String(hour).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+      tr.appendChild(th);
+      for(let d=0; d<7; d++){
+        const td = document.createElement('td');
+        td.className = 'slot';
+        td.dataset.d = d; td.dataset.s = s;
+        td.addEventListener('mousedown', paintStart);
+        td.addEventListener('mouseenter', paintMove);
+        td.addEventListener('click', (e)=>{ if(!isDragging) paintCell(td); });
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+
+    gridEl.innerHTML='';
+    gridEl.appendChild(thead);
+    gridEl.appendChild(tbody);
+    renderAll();
+  }
+
+  // パレット描画
+  function renderPalette(){
+    paletteEl.innerHTML='';
+    items.forEach(it=>{
+      const tag = document.createElement('div');
+      tag.className = 'tag' + (it.key===selectedKey?' active':'');
+      tag.innerHTML = `<span class="dot" style="background:${it.color}"></span>${it.name}`;
+      tag.addEventListener('click', ()=>{
+        if(it.key===selectedKey){
+          openEdit(it);
+        }else{
+          selectedKey = it.key; renderPalette();
+        }
+      });
+      paletteEl.appendChild(tag);
+    });
+  }
+
+  function openEdit(it){
+    const name = prompt('名称を編集（空で削除）', it.name);
+    if(name===null) return; // cancel
+    if(name===''){
+      if(confirm(`「${it.name}」を削除しますか？`)){
+        items = items.filter(x=>x.key!==it.key);
+        for(let d=0; d<7; d++) for(let s=0; s<SLOTS_PER_DAY; s++) if(schedule[d][s]===it.key) schedule[d][s]=null;
+        if(selectedKey===it.key) selectedKey = null;
+        renderAll();
+      }
+      return;
+    }
+    const color = prompt('色（#rrggbb）を変更', it.color) || it.color;
+    const thp = prompt('THP属性（none/sleep/meal/exercise/leisure/consult/stress）', it.thp||'none') || it.thp || 'none';
+    it.name = name; it.color=color; it.thp = thp; renderAll();
+  }
+
+  // 合計描画
+  function renderTotals(){
+    const mapSlots = {}; // key->slots
+    items.forEach(it=> mapSlots[it.key]=0);
+    for(let d=0; d<7; d++) for(let s=0; s<SLOTS_PER_DAY; s++){
+      const k = schedule[d][s]; if(!k) continue; mapSlots[k] = (mapSlots[k]||0)+1;
+    }
+    totalsEl.innerHTML='';
+    items.forEach(it=>{
+      const div = document.createElement('div');
+      const slots = mapSlots[it.key]||0; const hrs = (slots*0.5).toFixed(1);
+      div.className='pill';
+      div.innerHTML = `<span class="dot" style="background:${it.color}"></span><b>${it.name}</b>: ${hrs} 時間`;
+      totalsEl.appendChild(div);
+    })
+  }
+
+  // セル描画
+  function renderAll(){
+    gridEl.querySelectorAll('td.slot').forEach(td=>{
+      const d = +td.dataset.d, s = +td.dataset.s;
+      const key = schedule[d][s];
+      if(!key){ td.removeAttribute('data-item'); td.style.background='white'; td.textContent=''; }
+      else { const it = items.find(x=>x.key===key); td.dataset.item = key; td.style.background = it?.color || '#ddd'; td.textContent = it?.name || ''; }
+    });
+    renderPalette();
+    renderTotals();
+    updateBulkDayOptions();
+    renderTHP();
+  }
+
+  function updateBulkDayOptions(){
+    const sel = el('bulkDay');
+    if(sel.options.length===0){ days.forEach((d,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=d; sel.appendChild(o); }); }
+  }
+
+  // ---- 塗り処理 ----
+  let isDragging = false;
+  let dragPainting = null; // 選択中キー
+
+  function paintCell(td){
+    if(!selectedKey){ alert('先にパレットで項目を選んでください。'); return; }
+    const d = +td.dataset.d, s = +td.dataset.s;
+    schedule[d][s] = (schedule[d][s]===selectedKey) ? null : selectedKey;
+    renderAll();
+  }
+  function paintStart(e){ if(!selectedKey) return; isDragging = true; dragPainting = selectedKey; paintCell(e.currentTarget); }
+  function paintMove(e){ if(isDragging && dragPainting){ const td=e.currentTarget; const d=+td.dataset.d, s=+td.dataset.s; schedule[d][s]=dragPainting; td.style.background=items.find(i=>i.key===dragPainting)?.color||'#ddd'; td.textContent=items.find(i=>i.key===dragPainting)?.name||''; } }
+  document.addEventListener('mouseup', ()=>{ isDragging=false; dragPainting=null; renderTotals(); renderTHP(); });
+
+  // ---- 一括入力（夜またぎ対応／30分スナップ） ----
+  function timeToSlot(t){ const [hh,mm] = t.split(':').map(Number); return hh*2 + (mm>=30?1:0); }
+  function rangeSlots(start,end){
+    const r = []; if(start===end) return r; // 同時刻なら何もしない
+    if(end>start){ for(let s=start; s<end; s++) r.push(s); }
+    else { for(let s=start; s<48; s++) r.push(s); for(let s=0; s<end; s++) r.push(s); }
+    return r;
+  }
+  el('bulkFill').addEventListener('click', ()=>{
+    if(!selectedKey){ alert('先にパレットで項目を選んでください。'); return; }
+    const d = +el('bulkDay').value;
+    const s = timeToSlot(el('bulkStart').value);
+    const e = timeToSlot(el('bulkEnd').value);
+    rangeSlots(s,e).forEach(i=> schedule[d][i] = selectedKey);
+    renderAll();
+  });
+
+  // ---- データ操作 ----
+  function saveJson(){ const data = {v:2, items, schedule, unit:'30min'}; const blob = new Blob([JSON.stringify(data)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'schedule.json'; a.click(); URL.revokeObjectURL(a.href); }
+  function loadJson(file){ const reader = new FileReader(); reader.onload = e => { try{ const data = JSON.parse(e.target.result); if(!data.items || !data.schedule) throw new Error('形式が違います'); items = data.items; schedule = data.schedule; selectedKey = items[0]?.key || null; renderAll(); }catch(err){ alert('読込エラー: '+err.message); } }; reader.readAsText(file); }
+  function exportCsv(){ const lines = ['day,time,item']; for(let d=0; d<7; d++){ for(let s=0; s<SLOTS_PER_DAY; s++){ const key = schedule[d][s]; const name = key ? (items.find(i=>i.key===key)?.name||'') : ''; const hh = String(Math.floor(s/2)).padStart(2,'0'); const mm = s%2? '30':'00'; lines.push(`${days[d]},${hh}:${mm},${name}`); } } const blob = new Blob([lines.join('
+')], {type:'text/csv'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='schedule.csv'; a.click(); URL.revokeObjectURL(a.href); }
+  function clearAll(){ if(confirm('すべての入力を消去します。よろしいですか？')){ schedule = Array.from({length:7},()=>Array(SLOTS_PER_DAY).fill(null)); renderAll(); } }
+  function printPage(){ window.print(); }
+
+  el('saveJson').addEventListener('click', saveJson);
+  el('loadJsonInput').addEventListener('change', (e)=>{ const f=e.target.files?.[0]; if(f) loadJson(f); e.target.value=''; });
+  el('exportCsv').addEventListener('click', exportCsv);
+  el('clearAll').addEventListener('click', clearAll);
+  el('printPage').addEventListener('click', printPage);
+
+  // 追加
+  el('addItem').addEventListener('click', ()=>{
+    const name = el('newName').value.trim(); if(!name){ alert('項目名を入力してください'); return; }
+    const color = el('newColor').value || '#3b82f6';
+    const thp = el('newThp').value || 'none';
+    const it = {key: uid(), name, color, thp};
+    items.push(it); selectedKey = it.key; el('newName').value=''; renderAll();
+  });
+
+  // ---- THP 自動判定 ----
+  function renderTHP(){
+    // カテゴリ別にスロット集計
+    const catSlotsByDay = {sleep: Array(7).fill(0), meal: Array(7).fill(0), exercise:Array(7).fill(0), leisure:Array(7).fill(0), consult:Array(7).fill(0), stress:Array(7).fill(0)};
+    for(let d=0; d<7; d++){
+      for(let s=0; s<SLOTS_PER_DAY; s++){
+        const k = schedule[d][s]; if(!k) continue; const thp = (items.find(i=>i.key===k)?.thp)||'none'; if(catSlotsByDay[thp]!=null){ catSlotsByDay[thp][d]++; }
+      }
+    }
+    const sumSlots = (arr)=>arr.reduce((a,b)=>a+b,0);
+
+    const sleepDaysOK = catSlotsByDay.sleep.filter(x=>x>=12).length; // 12 slots = 6h
+    const mealDaysOK  = catSlotsByDay.meal.filter(x=>x>=3).length;   // 3 slots = 3回相当
+    const exerciseWeekMin = sumSlots(catSlotsByDay.exercise)*30;     // minutes
+    const exerciseDays30m = catSlotsByDay.exercise.filter(x=>x>=1).length; // >=30min
+    const consultWeekMin = sumSlots(catSlotsByDay.consult)*30;
+    const leisureWeekMin = sumSlots(catSlotsByDay.leisure)*30;
+    const stressWeekMin  = sumSlots(catSlotsByDay.stress)*30;
+
+    const blocks = [];
+    const add = (ok, title, detail)=>{
+      blocks.push(`<div class="c ${ok?'ok':'warn'}"><h4>${title} ${ok? '✅':'⚠️'}</h4><p>${detail}</p></div>`);
+    };
+
+    add(sleepDaysOK>=5, '睡眠', `6時間以上の日：${sleepDaysOK}/7日`);
+    add(mealDaysOK>=5, '食事', `1日3回相当を満たした日：${mealDaysOK}/7日`);
+    add(exerciseWeekMin>=150 || exerciseDays30m>=3, '運動', `週合計：${exerciseWeekMin}分 / 30分以上の日：${exerciseDays30m}日`);
+    add(consultWeekMin>=60, '相談・交流', `週合計：${consultWeekMin}分`);
+    add(leisureWeekMin>=180, '余暇', `週合計：${leisureWeekMin}分`);
+    add(stressWeekMin>=60, 'ストレス発散', `週合計：${stressWeekMin}分`);
+
+    thpPanel.innerHTML = blocks.join('');
+  }
+
+  // 初期化
+  function init(){
+    buildGrid();
+    if(items.length===0){ presets.forEach(p=> items.push({...p, key:uid()})); selectedKey = items[0].key; }
+    renderAll();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
