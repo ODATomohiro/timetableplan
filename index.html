@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>1週間スケジュールメーカー（1ページ印刷対応）</title>
+<title>1週間スケジュールメーカー（THP設定マスタ付き・1ページ印刷）</title>
 <style>
   :root{ --bg:#f7f7fb; --card:#ffffff; --ink:#111827; --muted:#6b7280; --line:#e5e7eb; }
   *{box-sizing:border-box}
@@ -13,7 +13,7 @@
   .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; box-shadow:0 1px 6px rgba(0,0,0,.05)}
   .row{display:flex; gap:12px; flex-wrap:wrap}
   label{font-size:12px; color:var(--muted)}
-  input[type=text],input[type=time],select{border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:14px; background:#fff}
+  input[type=text],input[type=time],input[type=number],select{border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:14px; background:#fff}
   input[type=color]{border:1px solid var(--line); border-radius:6px; height:36px; width:48px}
   button{border:1px solid var(--line); background:#fff; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600}
   button.primary{background:#3b82f6; color:#fff; border-color:transparent}
@@ -40,14 +40,18 @@
   .thp .warn{border-color:#fef3c7; background:#fffbeb}
   .thp h4{margin:0 0 4px; font-size:13px}
   .thp p{margin:0; font-size:12px; color:#374151}
+  .cfg{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:8px}
+  .cfg .i{display:flex; flex-direction:column; gap:4px}
+  .cfg small{color:#6b7280}
+  details summary{cursor:pointer; font-weight:700}
   /* ---- 印刷（A4 1ページに収める） ---- */
   @media print{
     @page { size: A4 portrait; margin: 8mm; }
     html, body{ background:#fff !important; }
     .wrap{ max-width:100%; padding:0; }
     /* 画面の操作系は印刷しない */
-    #controls, .palette label, .small:has(> b:contains('使い方')) { display:none !important; }
-    /* 表示対象：タイトル＋スケジュール＋THP */
+    #controls, #cfgCard, .palette label, .small.howto { display:none !important; }
+    /* 表示対象：タイトル＋スケジュール＋THP（開いている場合） */
     #printHeader, #cardSchedule, #cardTHP { display:block !important; page-break-inside: avoid; }
     h1{ display:none; }
     #printHeader{ margin-bottom:6px; }
@@ -80,6 +84,32 @@
       </div>
       <h2 id="titleDisplay" style="margin:8px 0 0 2px">（タイトル）</h2>
       <div class="small">※ 入力欄は画面表示用、印刷時は上の太字タイトルだけが出力されます。</div>
+    </div>
+
+    <!-- 設定：THP基準（マスタ） -->
+    <div id="cfgCard" class="card" style="margin-bottom:12px">
+      <details id="cfgDetails">
+        <summary>⚙️ THPチェック基準（マスタ設定）</summary>
+        <div class="cfg" style="margin-top:8px">
+          <div class="i"><label>睡眠：1日あたり基準（時間）</label><input id="cfgSleepHours" type="number" min="0" step="0.5" value="6"><small>例：6＝6時間以上を「OK」対象</small></div>
+          <div class="i"><label>睡眠：OKの日数（/週）</label><input id="cfgSleepDays" type="number" min="0" max="7" value="5"></div>
+
+          <div class="i"><label>食事：1日あたり基準（回相当）</label><input id="cfgMealSlots" type="number" min="0" step="1" value="3"><small>※30分=1枠としてカウント</small></div>
+          <div class="i"><label>食事：OKの日数（/週）</label><input id="cfgMealDays" type="number" min="0" max="7" value="5"></div>
+
+          <div class="i"><label>運動：週合計（分）</label><input id="cfgExWeeklyMin" type="number" min="0" step="10" value="150"></div>
+          <div class="i"><label>運動：30分以上の日数（/週）</label><input id="cfgExDays30" type="number" min="0" max="7" value="3"></div>
+
+          <div class="i"><label>相談・交流：週合計（分）</label><input id="cfgConsultMin" type="number" min="0" step="10" value="60"></div>
+          <div class="i"><label>余暇：週合計（分）</label><input id="cfgLeisureMin" type="number" min="0" step="10" value="180"></div>
+          <div class="i"><label>ストレス発散：週合計（分）</label><input id="cfgStressMin" type="number" min="0" step="10" value="60"></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="cfgSave" class="primary">この設定を使う</button>
+          <button id="cfgReset">既定値に戻す</button>
+        </div>
+        <div class="small howto" style="margin-top:6px">※ 設定はブラウザに保存（localStorage）。別端末/別ブラウザでは共有されません。</div>
+      </details>
     </div>
 
     <!-- 上：シンプル動作版 -->
@@ -145,7 +175,7 @@
     <div id="cardTHP" class="card" style="margin-top:12px; display:none">
       <div class="small" style="margin-bottom:6px"><b>THPチェック（自動判定）</b></div>
       <div id="thpPanel" class="thp"></div>
-      <div class="small" style="margin-top:6px">基準：睡眠6h以上の日が5日以上／食事は1日3回相当が5日以上／運動は週150分以上または30分以上×3日／相談・交流1h以上/週／余暇3h以上/週／ストレス発散1h以上/週</div>
+      <div class="small" style="margin-top:6px">※ 基準は上の「THPチェック基準（マスタ設定）」から変更できます。</div>
     </div>
   </div>
 
@@ -160,6 +190,17 @@
   const gridEl=el('grid'); const paletteEl=el('palette'); const totalsEl=el('totals'); const thpPanel=el('thpPanel');
 
   const presets=[
+
+    {name:'部活（運動）', color:'#16a34a', thp:'exercise'},
+    {name:'部活', color:'#4ade80', thp:'none'},
+    {name:'学校', color:'#3b82f6', thp:'none'},
+    {name:'勉強', color:'#f59e0b', thp:'none'},
+
+
+    {name:'部活', color:'#22c55e', thp:'exercise'},
+    {name:'学校', color:'#3b82f6', thp:'none'},
+    {name:'勉強', color:'#f59e0b', thp:'none'},
+
     {name:'睡眠', color:'#0ea5e9', thp:'sleep'},
     {name:'仕事', color:'#f97316', thp:'none'},
     {name:'食事', color:'#10b981', thp:'meal'},
@@ -169,6 +210,52 @@
   ];
 
   const uid=()=> 'i_'+Math.random().toString(36).slice(2,9);
+
+  // ---- THP設定マスタ ----
+  const defaultCfg = {
+    sleepHoursPerDay: 6,
+    sleepDaysOK: 5,
+    mealSlotsPerDay: 3,
+    mealDaysOK: 5,
+    exWeeklyMin: 150,
+    exDays30m: 3,
+    consultWeeklyMin: 60,
+    leisureWeeklyMin: 180,
+    stressWeeklyMin: 60,
+  };
+  const loadCfg = () => {
+    try{ const j = JSON.parse(localStorage.getItem('thpCfg')||'null'); return {...defaultCfg, ...(j||{})}; }catch(e){ return {...defaultCfg}; }
+  };
+  let thpCfg = loadCfg();
+  function bindCfgToUI(){
+    const m = new Map([
+      ['cfgSleepHours','sleepHoursPerDay'],
+      ['cfgSleepDays','sleepDaysOK'],
+      ['cfgMealSlots','mealSlotsPerDay'],
+      ['cfgMealDays','mealDaysOK'],
+      ['cfgExWeeklyMin','exWeeklyMin'],
+      ['cfgExDays30','exDays30m'],
+      ['cfgConsultMin','consultWeeklyMin'],
+      ['cfgLeisureMin','leisureWeeklyMin'],
+      ['cfgStressMin','stressWeeklyMin'],
+    ]);
+    m.forEach((k,id)=>{ const x=el(id); if(x){ x.value = thpCfg[k]; }});
+  }
+  function readCfgFromUI(){
+    const v = (id, f=Number)=> f(el(id).value);
+    thpCfg = {
+      sleepHoursPerDay: v('cfgSleepHours'),
+      sleepDaysOK: v('cfgSleepDays'),
+      mealSlotsPerDay: v('cfgMealSlots'),
+      mealDaysOK: v('cfgMealDays'),
+      exWeeklyMin: v('cfgExWeeklyMin'),
+      exDays30m: v('cfgExDays30'),
+      consultWeeklyMin: v('cfgConsultMin'),
+      leisureWeeklyMin: v('cfgLeisureMin'),
+      stressWeeklyMin: v('cfgStressMin'),
+    };
+    localStorage.setItem('thpCfg', JSON.stringify(thpCfg));
+  }
 
   // ===== グリッド（表示は5:00始まり） =====
   const displaySlotIndex = row => (START_AT_SLOT + row) % SLOTS;
@@ -215,14 +302,14 @@
     const color=prompt('色（#rrggbb）', it.color)||it.color; const thp=prompt('THP属性（none/sleep/meal/exercise/leisure/consult/stress）', it.thp||'none')||it.thp||'none'; it.name=name; it.color=color; it.thp=thp; updateAll();
   }
 
-  function updateAll(){ renderCells(); renderPalette(); renderTotals(); updateBulkDayOptions(); renderTHP(); }
+  function updateAll(){ renderCells(); renderPalette(); renderTotals(); updateBulkDayOptions(); if(el('cardTHP').style.display!=='none'){ renderTHP(); } }
 
   // ===== ペイント =====
   let isDragging=false, dragKey=null;
   function toggleCell(td){ if(!selectedKey){ alert('先にパレットで項目を選んでください'); return; } const d=+td.dataset.d, s=+td.dataset.s; schedule[d][s]= (schedule[d][s]===selectedKey)? null : selectedKey; updateAll(); }
   function startPaint(e){ if(!selectedKey) return; isDragging=true; dragKey=selectedKey; toggleCell(e.currentTarget); }
   function movePaint(e){ if(isDragging && dragKey){ const td=e.currentTarget; const d=+td.dataset.d, s=+td.dataset.s; schedule[d][s]=dragKey; const it = items.find(i=>i.key===dragKey); td.style.background=it?.color||'#ddd'; td.textContent=it?.name||''; td.style.color='#fff'; }}
-  document.addEventListener('mouseup',()=>{ isDragging=false; dragKey=null; renderTotals(); renderTHP(); });
+  document.addEventListener('mouseup',()=>{ isDragging=false; dragKey=null; renderTotals(); if(el('cardTHP').style.display!=='none'){ renderTHP(); } });
 
   // ===== 一括入力 =====
   function timeToSlot(t){ const [hh,mm]=t.split(':').map(Number); return hh*2 + (mm>=30?1:0); }
@@ -233,8 +320,9 @@
   function exportCsv(){ const lines=['day,time,item']; for(let d=0; d<7; d++){ for(let row=0; row<48; row++){ const s=displaySlotIndex(row); const key=schedule[d][s]; const name= key? (items.find(i=>i.key===key)?.name||'') : ''; lines.push(`${days[d]},${slotToTime(s)},${name}`); }} const blob=new Blob([lines.join('¥n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='schedule.csv'; a.click(); URL.revokeObjectURL(a.href); }
   function clearAll(){ if(confirm('すべて消去します。よろしいですか？')){ schedule=Array.from({length:7},()=>Array(48).fill(null)); updateAll(); }}
 
-  // ===== THP 自動判定 =====
+  // ===== THP 自動判定（設定反映） =====
   function renderTHP(){
+    const cfg = thpCfg;
     const catByDay = {sleep:Array(7).fill(0), meal:Array(7).fill(0), exercise:Array(7).fill(0), leisure:Array(7).fill(0), consult:Array(7).fill(0), stress:Array(7).fill(0)};
     for(let d=0; d<7; d++){
       for(let s=0; s<48; s++){
@@ -242,27 +330,28 @@
       }
     }
     const sumSlots=a=>a.reduce((x,y)=>x+y,0);
-    const sleepDaysOK = catByDay.sleep.filter(x=>x>=12).length; // 6h
-    const mealDaysOK  = catByDay.meal.filter(x=>x>=3).length;   // 3回相当
+    const sleepDaysOK = catByDay.sleep.filter(x=>x>=(cfg.sleepHoursPerDay*2)).length;
+    const mealDaysOK  = catByDay.meal.filter(x=>x>=cfg.mealSlotsPerDay).length;
     const exWeekMin   = sumSlots(catByDay.exercise)*30;
     const exDays30m   = catByDay.exercise.filter(x=>x>=1).length;
+
     const consultMin  = sumSlots(catByDay.consult)*30;
     const leisureMin  = sumSlots(catByDay.leisure)*30;
     const stressMin   = sumSlots(catByDay.stress)*30;
 
     const blocks=[]; const add=(ok,title,detail)=> blocks.push(`<div class="c ${ok?'ok':'warn'}"><h4>${title} ${ok?'✅':'⚠️'}</h4><p>${detail}</p></div>`);
-    add(sleepDaysOK>=5,'睡眠',`6時間以上の日：${sleepDaysOK}/7日`);
-    add(mealDaysOK>=5,'食事',`1日3回相当の日：${mealDaysOK}/7日`);
-    add(exWeekMin>=150 || exDays30m>=3,'運動',`週合計：${exWeekMin}分／30分以上の日：${exDays30m}日`);
-    add(consultMin>=60,'相談・交流',`週合計：${consultMin}分`);
-    add(leisureMin>=180,'余暇',`週合計：${leisureMin}分`);
-    add(stressMin>=60,'ストレス発散',`週合計：${stressMin}分`);
+    add(sleepDaysOK>=cfg.sleepDaysOK,'睡眠',`基準${cfg.sleepHoursPerDay}h以上の日：${sleepDaysOK}/7日（目標${cfg.sleepDaysOK}日）`);
+    add(mealDaysOK>=cfg.mealDaysOK,'食事',`基準${cfg.mealSlotsPerDay}回相当/日の日：${mealDaysOK}/7日（目標${cfg.mealDaysOK}日）`);
+    add(exWeekMin>=cfg.exWeeklyMin || exDays30m>=cfg.exDays30m,'運動',`週合計：${exWeekMin}分／30分以上の日：${exDays30m}日（目標 合計${cfg.exWeeklyMin}分 または ${cfg.exDays30m}日）`);
+    add(consultMin>=cfg.consultWeeklyMin,'相談・交流',`週合計：${consultMin}分（目標${cfg.consultWeeklyMin}分）`);
+    add(leisureMin>=cfg.leisureWeeklyMin,'余暇',`週合計：${leisureMin}分（目標${cfg.leisureWeeklyMin}分）`);
+    add(stressMin>=cfg.stressWeeklyMin,'ストレス発散',`週合計：${stressMin}分（目標${cfg.stressWeeklyMin}分）`);
     thpPanel.innerHTML = blocks.join('');
   }
 
   // ===== 初期化 =====
   function updateBulkDayOptions(){ const sel=el('bulkDay'); if(sel.options.length) return; days.forEach((d,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=d; sel.appendChild(o); }); }
-  function init(){ buildGrid(); presets.forEach(p=> items.push({...p, key:uid()})); selectedKey = items[0].key; updateAll(); }
+  function init(){ buildGrid(); presets.forEach(p=> items.push({...p, key:uid()})); selectedKey = items[0].key; updateAll(); bindCfgToUI(); }
 
   // イベント
   el('addItem').addEventListener('click',()=>{ const name=el('newName').value.trim(); if(!name){ alert('項目名を入力'); return; } const color=el('newColor').value||'#3b82f6'; const thp=el('newThp').value||'none'; const it={key:uid(), name, color, thp}; items.push(it); selectedKey=it.key; el('newName').value=''; updateAll(); });
@@ -284,6 +373,14 @@
       else { thpCard.style.display='none'; thpBtn.textContent='THPチェックを表示'; thpBtn.setAttribute('aria-expanded','false'); }
     });
   }
+
+  // 設定 保存/既定値
+  const btnSave=el('cfgSave'); const btnReset=el('cfgReset');
+  if(btnSave){ btnSave.addEventListener('click', ()=>{ readCfgFromUI(); if(thpCard.style.display!=='none'){ renderTHP(); } alert('THP基準を保存しました'); }); }
+  if(btnReset){ btnReset.addEventListener('click', ()=>{ thpCfg={...defaultCfg}; localStorage.setItem('thpCfg', JSON.stringify(thpCfg)); bindCfgToUI(); if(thpCard.style.display!=='none'){ renderTHP(); } }); }
+
+  // 展開状態（記録）
+  const det=el('cfgDetails'); if(det){ const k='thpCfgOpen'; det.open = localStorage.getItem(k)==='1'; det.addEventListener('toggle',()=> localStorage.setItem(k, det.open?'1':'0')); }
 
   init();
 })();
